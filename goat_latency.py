@@ -3,7 +3,6 @@ import time
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from concurrent.futures import ThreadPoolExecutor
-import time
 from dotenv import load_dotenv
 import os
 
@@ -28,9 +27,7 @@ def extract_active_authentication() -> dict[str, str]: # ! -> function which alw
     return headers
     
 def check_latency(route: str, route_id: int, desired_time: int) -> None:
-
-    value = 10
-    retry_seconds = 4
+    value = 0
 
     postgres = postgres_pool.getconn()
     cursor = postgres.cursor(cursor_factory=RealDictCursor)
@@ -38,47 +35,36 @@ def check_latency(route: str, route_id: int, desired_time: int) -> None:
     headers = extract_active_authentication()
 
     try:
-        requests.get(route, timeout=(3, desired_time), headers=headers, verify=False)
 
-        
+        start_time = time.perf_counter()
+                
+         
+        requests.get(
+            route,
+            timeout=(3, desired_time),
+            headers=headers,
+            verify=False
+        )
+
+        end_time = time.perf_counter()
+
+        value = end_time - start_time
+
+        print(route, value)
+
     except Exception:
-
-        time.sleep(retry_seconds) # * 4 seconds time sleep.
-
-        print(retry_seconds, route, "retrey 1")
-
-        retry_seconds *= 2
-
-        try:
-
-            requests.get(route, timeout=(3, desired_time), headers=headers, verify=False)
-
-          
-        except Exception:
-
-            time.sleep(retry_seconds) # * 8 seconds time sleep.
-
-            print(retry_seconds, route, "retrey 2")
-
-            try:
-
-                requests.get(route, timeout=(3, desired_time), headers=headers, verify=False)
-
-     
-            except Exception:
-                value = 50
-
+         
+         value = 10
+      
     finally:
-        cursor.execute("insert into routes_metrics (parent, value) values (%s, %s) returning *;", (route_id, value))
-
-        postgres_response = cursor.fetchone()
+        cursor.execute(
+            "insert into routes_metrics (parent, value) values (%s, %s) returning *;",
+            (route_id, value)
+        )
 
         postgres.commit()
-
         cursor.close()
         postgres_pool.putconn(postgres)
-
-        # print(postgres_response)
 
 
 def main(entity_name: str) -> None:
