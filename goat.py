@@ -40,15 +40,13 @@ def check_timeout(route: str, route_id: int, desired_time: int) -> None:
     try:
         for attempt in range(max_retries):
             try:
-                response =requests.get(
+                requests.get(
                     route,
                     timeout=(3, desired_time),
                     headers=headers,
                     verify=False
                 )
 
-                print(response.status_code, response.text)
-                
                 break
 
             except Exception as e:
