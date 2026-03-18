@@ -3,7 +3,6 @@ import time
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from concurrent.futures import ThreadPoolExecutor
-import time
 from dotenv import load_dotenv
 import os
 
@@ -27,10 +26,8 @@ def extract_active_authentication() -> dict[str, str]: # ! -> function which alw
 
     return headers
     
-def check_timeout(route: str, route_id: int, desired_time: int) -> None:
-    value = 10
-    max_retries = 3
-    base_delay = 4 
+def check_latency(route: str, route_id: int, desired_time: int) -> None:
+    value = 0
 
     postgres = postgres_pool.getconn()
     cursor = postgres.cursor(cursor_factory=RealDictCursor)
@@ -38,27 +35,27 @@ def check_timeout(route: str, route_id: int, desired_time: int) -> None:
     headers = extract_active_authentication()
 
     try:
-        for attempt in range(max_retries):
-            try:
-                requests.get(
-                    route,
-                    timeout=(3, desired_time),
-                    headers=headers,
-                    verify=False
-                )
 
-                break
+        start_time = time.perf_counter()
+                
+         
+        requests.get(
+            route,
+            timeout=(3, desired_time),
+            headers=headers,
+            verify=False
+        )
 
-            except Exception as e:
-                if attempt == max_retries - 1:
+        end_time = time.perf_counter()
 
-                    value = 50
-                    print(f"Final failure for {route}: {e}")
-                else:
-                    delay = base_delay * (2 ** attempt)
-                    print(f"{route} retry {attempt + 1} in {delay}s")
-                    time.sleep(delay)
+        value = end_time - start_time
 
+        print(route, value)
+
+    except Exception:
+         
+         value = 10
+      
     finally:
         cursor.execute(
             "insert into routes_metrics (parent, value) values (%s, %s) returning *;",
