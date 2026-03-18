@@ -27,7 +27,7 @@ def extract_active_authentication() -> dict[str, str]: # ! -> function which alw
 
     return headers
     
-def check_latency(route: str, route_id: int, desired_time: int) -> None:
+def check_timeout(route: str, route_id: int, desired_time: int) -> None:
     value = 10
     max_retries = 3
     base_delay = 4 
@@ -40,12 +40,14 @@ def check_latency(route: str, route_id: int, desired_time: int) -> None:
     try:
         for attempt in range(max_retries):
             try:
-                requests.get(
+                response =requests.get(
                     route,
                     timeout=(3, desired_time),
                     headers=headers,
                     verify=False
                 )
+
+                print(response.status_code, response.text)
                 
                 break
 
