@@ -28,9 +28,9 @@ def extract_active_authentication() -> dict[str, str]: # ! -> function which alw
     return headers
     
 def check_latency(route: str, route_id: int, desired_time: int) -> None:
-
     value = 10
-    retry_seconds = 4
+    max_retries = 3
+    base_delay = 4 
 
     postgres = postgres_pool.getconn()
     cursor = postgres.cursor(cursor_factory=RealDictCursor)
@@ -38,47 +38,36 @@ def check_latency(route: str, route_id: int, desired_time: int) -> None:
     headers = extract_active_authentication()
 
     try:
-        requests.get(route, timeout=(3, desired_time), headers=headers, verify=False)
-
-        
-    except Exception:
-
-        time.sleep(retry_seconds) # * 4 seconds time sleep.
-
-        print(retry_seconds, route, "retrey 1")
-
-        retry_seconds *= 2
-
-        try:
-
-            requests.get(route, timeout=(3, desired_time), headers=headers, verify=False)
-
-          
-        except Exception:
-
-            time.sleep(retry_seconds) # * 8 seconds time sleep.
-
-            print(retry_seconds, route, "retrey 2")
-
+        for attempt in range(max_retries):
             try:
+                requests.get(
+                    route,
+                    timeout=(3, desired_time),
+                    headers=headers,
+                    verify=False
+                )
+                
+                break
 
-                requests.get(route, timeout=(3, desired_time), headers=headers, verify=False)
+            except Exception as e:
+                if attempt == max_retries - 1:
 
-     
-            except Exception:
-                value = 50
+                    value = 50
+                    print(f"Final failure for {route}: {e}")
+                else:
+                    delay = base_delay * (2 ** attempt)
+                    print(f"{route} retry {attempt + 1} in {delay}s")
+                    time.sleep(delay)
 
     finally:
-        cursor.execute("insert into routes_metrics (parent, value) values (%s, %s) returning *;", (route_id, value))
-
-        postgres_response = cursor.fetchone()
+        cursor.execute(
+            "insert into routes_metrics (parent, value) values (%s, %s) returning *;",
+            (route_id, value)
+        )
 
         postgres.commit()
-
         cursor.close()
         postgres_pool.putconn(postgres)
-
-        # print(postgres_response)
 
 
 def main(entity_name: str) -> None:
