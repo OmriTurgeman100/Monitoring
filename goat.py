@@ -13,8 +13,8 @@ postgres_pool = pool.ThreadedConnectionPool(1, 20,  os.getenv("DATABASE_URL"))
 
 def extract_active_authentication() -> dict[str, str]: # ! -> function which always extracts a valid token, to prevent auth failures, which can mislead results.
     body = {
-        "username": "admin",
-        "password": "admin"
+        "username": os.getenv("GOAT_USERNAME"),
+        "password": os.getenv("GOAT_PASSWORD")
     }
 
     response = requests.post("http://localhost:3000/api/v1/auth/login", json=body)
