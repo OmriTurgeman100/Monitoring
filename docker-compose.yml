@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongodb/mongodb-community-server:8.2-ubi8
+    container_name: rocketchat-mongo
+    restart: unless-stopped
+    command: ["mongod", "--bind_ip_all", "--replSet", "rs0", "--oplogSize", "128"]
+    volumes:
+      - mongo_data:/data/db
+
+  mongo-init-replica:
+    image: mongodb/mongodb-community-server:8.2-ubi8
+    container_name: rocketchat-mongo-init
+    depends_on:
+      - mongo
+    restart: "no"
+    entrypoint: >
+      bash -c '
+        sleep 10;
+        mongosh --host mongo:27017 --eval "
+          try {
+            rs.status();
+            print(\"Replica set already initialized\");
+          } catch (e) {
+            rs.initiate({
+              _id: \"rs0\",
+              members: [{ _id: 0, host: \"mongo:27017\" }]
+            });
+            print(\"Replica set initialized\");
+          }
+        "
+      '
+
+  rocketchat:
+    image: registry.rocket.chat/rocketchat/rocket.chat:8.2.1
+    container_name: rocketchat
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - mongo-init-replica
+    environment:
+      PORT: 3000
+      ROOT_URL: http://localhost:3001
+      MONGO_URL: mongodb://mongo:27017/rocketchat?replicaSet=rs0
+    ports:
+      - "3001:3000"
+
+volumes:
+  mongo_data:
