@@ -43,6 +43,10 @@ def check_latency(route: str, route_id: int, desired_time: int) -> None:
         
     except Exception:
 
+        time.sleep(retry_seconds) # * 4 seconds time sleep.
+
+        print(retry_seconds, route, "retrey 1")
+
         retry_seconds *= 2
 
         try:
@@ -52,6 +56,9 @@ def check_latency(route: str, route_id: int, desired_time: int) -> None:
           
         except Exception:
 
+            time.sleep(retry_seconds) # * 8 seconds time sleep.
+
+            print(retry_seconds, route, "retrey 2")
 
             try:
 
@@ -71,7 +78,7 @@ def check_latency(route: str, route_id: int, desired_time: int) -> None:
         cursor.close()
         postgres_pool.putconn(postgres)
 
-        print(postgres_response)
+        # print(postgres_response)
 
 
 def main(entity_name: str) -> None:
