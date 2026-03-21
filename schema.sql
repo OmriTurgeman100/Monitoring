@@ -21,3 +21,13 @@ create table if not exists routes_metrics (
     created_at timestamp default now()
 );
 
+alter table routes_metrics
+add column log text,
+add column type text;
+
+alter table routes_metrics
+alter column created_at type timestamptz
+using created_at at time zone 'UTC';
+
+ALTER TABLE routes_metrics
+ADD COLUMN latency DOUBLE PRECISION;
