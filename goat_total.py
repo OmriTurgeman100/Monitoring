@@ -3,7 +3,6 @@ import time
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from concurrent.futures import ThreadPoolExecutor
-import time
 from dotenv import load_dotenv
 import os
 
@@ -12,25 +11,35 @@ load_dotenv()
 postgres_pool = pool.ThreadedConnectionPool(1, 20,  os.getenv("DATABASE_URL"))
 
 def extract_active_authentication() -> dict[str, str]: # ! -> function which always extracts a valid token, to prevent auth failures, which can mislead results.
-    body = {
-        "username": os.getenv("GOAT_USERNAME"),
-        "password": os.getenv("GOAT_PASSWORD")
-    }
+    try:
+        body = {
+            "username": os.getenv("GOAT_USERNAME"),
+            "password": os.getenv("GOAT_PASSWORD")
+        } # * only used for testing, will consider caching later.
 
-    response = requests.post("http://localhost:3000/api/v1/auth/login", json=body)
+        response = requests.post("http://localhost:3000/api/v1/auth/login", json=body)
 
-    data = response.json()
+        response.raise_for_status()
+        
+        data = response.json()
 
-    headers = {
-        "Authorization": f"Bearer {data['token']}"
-    }
+        headers = {
+            "Authorization": f"Bearer {data['token']}"
+        }
 
-    return headers
+        return headers
+    
+    except Exception as e:
+        print(e)
     
 def check_timeout(route: str, route_id: int, desired_time: int) -> None:
-    value = 10
+    value = 0
     max_retries = 3
-    base_delay = 4 
+    base_delay = 4
+    exception_log = None
+    exception_type = None
+    latency = None
+
 
     postgres = postgres_pool.getconn()
     cursor = postgres.cursor(cursor_factory=RealDictCursor)
@@ -39,21 +48,33 @@ def check_timeout(route: str, route_id: int, desired_time: int) -> None:
 
     try:
         for attempt in range(max_retries):
+            start = time.perf_counter()
             try:
-                requests.get(
+                response = requests.get(
                     route,
                     timeout=(3, desired_time),
                     headers=headers,
                     verify=False
                 )
 
+                latency = time.perf_counter() - start
+
+                response.raise_for_status() # * returns an exception for non 200 status
+
                 break
 
             except Exception as e:
                 if attempt == max_retries - 1:
-
+                    
                     value = 50
                     print(f"Final failure for {route}: {e}")
+
+                    exception_log = str(e)
+
+                    exception_type = type(e).__name__
+
+                    print(exception_log, exception_type, value)
+
                 else:
                     delay = base_delay * (2 ** attempt)
                     print(f"{route} retry {attempt + 1} in {delay}s")
@@ -61,9 +82,12 @@ def check_timeout(route: str, route_id: int, desired_time: int) -> None:
 
     finally:
         cursor.execute(
-            "insert into routes_metrics (parent, value) values (%s, %s) returning *;",
-            (route_id, value)
+            "insert into routes_metrics (parent, value, log, type, latency) values (%s, %s, %s, %s, %s) returning *;",
+            (route_id, value, exception_log, exception_type, latency)
         )
+
+        inserted = cursor.fetchone()
+        print(inserted)
 
         postgres.commit()
         cursor.close()
