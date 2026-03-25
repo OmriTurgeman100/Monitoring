@@ -5,6 +5,7 @@ from psycopg2.extras import RealDictCursor
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import os
+import random
 
 load_dotenv()
 
@@ -76,7 +77,8 @@ def check_timeout(route: str, route_id: int, desired_time: int) -> None:
                     print(exception_log, exception_type, value)
 
                 else:
-                    delay = base_delay * (2 ** attempt)
+                    max_delay = base_delay * (2 ** attempt)
+                    delay = random.uniform(0, max_delay)
                     print(f"{route} retry {attempt + 1} in {delay}s")
                     time.sleep(delay)
 
